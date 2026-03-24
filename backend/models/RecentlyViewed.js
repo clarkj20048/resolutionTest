@@ -3,9 +3,9 @@ const mongoose = require('mongoose');
 const recentlyViewedSchema = new mongoose.Schema(
   {
     resolutionId: {
-      type: String,
+      type: Number,
       required: true,
-      trim: true,
+      unique: true,
     },
     title: {
       type: String,
