@@ -59,7 +59,7 @@ const resolutionSchema = new mongoose.Schema(
     toJSON: {
       virtuals: true,
       transform: (doc, ret) => {
-        ret.id = ret.resolutionId;
+        ret.id = ret.resolutionId ?? ret._id.toString();
         ret.created_at = ret.createdAt;
         delete ret._id;
         delete ret.resolutionId;

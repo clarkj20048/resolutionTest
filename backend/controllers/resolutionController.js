@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Resolution = require('../models/Resolution');
 const RecentlyViewed = require('../models/RecentlyViewed');
 const Counter = require('../models/Counter');
@@ -5,6 +6,28 @@ const Counter = require('../models/Counter');
 const getNumericId = (value) => {
   const numericId = Number.parseInt(value, 10);
   return Number.isNaN(numericId) ? null : numericId;
+};
+
+const normalizeResolutionKey = (value) => String(value || '').trim();
+
+const buildResolutionLookup = (value) => {
+  const key = normalizeResolutionKey(value);
+  const numericId = getNumericId(key);
+  const conditions = [];
+
+  if (numericId !== null) {
+    conditions.push({ resolutionId: numericId });
+  }
+
+  if (mongoose.Types.ObjectId.isValid(key)) {
+    conditions.push({ _id: key });
+  }
+
+  if (conditions.length === 0) {
+    return null;
+  }
+
+  return conditions.length === 1 ? conditions[0] : { $or: conditions };
 };
 
 const getNextSequence = async (name) => {
@@ -60,13 +83,13 @@ const getResolutions = async (req, res) => {
 };
 
 const getResolutionById = async (req, res) => {
-  const resolutionId = getNumericId(req.params.id);
-  if (resolutionId === null) {
+  const lookup = buildResolutionLookup(req.params.id);
+  if (!lookup) {
     return res.status(400).json({ error: 'Invalid resolution ID' });
   }
 
   try {
-    const resolution = await Resolution.findOne({ resolutionId });
+    const resolution = await Resolution.findOne(lookup);
     if (!resolution) {
       return res.status(404).json({ error: 'Resolution not found' });
     }
@@ -95,13 +118,13 @@ const createResolution = async (req, res) => {
 };
 
 const updateResolution = async (req, res) => {
-  const resolutionId = getNumericId(req.params.id);
-  if (resolutionId === null) {
+  const lookup = buildResolutionLookup(req.params.id);
+  if (!lookup) {
     return res.status(400).json({ error: 'Invalid resolution ID' });
   }
 
   try {
-    const existing = await Resolution.findOne({ resolutionId });
+    const existing = await Resolution.findOne(lookup);
     if (!existing) {
       return res.status(404).json({ error: 'Resolution not found' });
     }
@@ -111,7 +134,7 @@ const updateResolution = async (req, res) => {
       existing.status
     );
 
-    const updatedResolution = await Resolution.findOneAndUpdate({ resolutionId }, payload, {
+    const updatedResolution = await Resolution.findOneAndUpdate(lookup, payload, {
       new: true,
       runValidators: true,
     });
@@ -127,18 +150,18 @@ const updateResolution = async (req, res) => {
 };
 
 const deleteResolution = async (req, res) => {
-  const resolutionId = getNumericId(req.params.id);
-  if (resolutionId === null) {
+  const lookup = buildResolutionLookup(req.params.id);
+  if (!lookup) {
     return res.status(400).json({ error: 'Invalid resolution ID' });
   }
 
   try {
-    const resolution = await Resolution.findOneAndDelete({ resolutionId });
+    const resolution = await Resolution.findOneAndDelete(lookup);
     if (!resolution) {
       return res.status(404).json({ error: 'Resolution not found' });
     }
 
-    await RecentlyViewed.deleteMany({ resolutionId });
+    await RecentlyViewed.deleteMany({ resolutionId: normalizeResolutionKey(req.params.id) });
 
     return res.json({ success: true, message: 'Resolution deleted successfully' });
   } catch (error) {
@@ -174,14 +197,14 @@ const createPendingResolution = async (req, res) => {
 };
 
 const acceptPendingResolution = async (req, res) => {
-  const resolutionId = getNumericId(req.params.id);
-  if (resolutionId === null) {
+  const lookup = buildResolutionLookup(req.params.id);
+  if (!lookup) {
     return res.status(400).json({ error: 'Invalid resolution ID' });
   }
 
   try {
     const resolution = await Resolution.findOneAndUpdate(
-      { resolutionId, status: 'pending' },
+      { ...lookup, status: 'pending' },
       { status: 'approved' },
       { new: true }
     );
@@ -201,13 +224,13 @@ const acceptPendingResolution = async (req, res) => {
 };
 
 const rejectPendingResolution = async (req, res) => {
-  const resolutionId = getNumericId(req.params.id);
-  if (resolutionId === null) {
+  const lookup = buildResolutionLookup(req.params.id);
+  if (!lookup) {
     return res.status(400).json({ error: 'Invalid resolution ID' });
   }
 
   try {
-    const resolution = await Resolution.findOneAndDelete({ resolutionId, status: 'pending' });
+    const resolution = await Resolution.findOneAndDelete({ ...lookup, status: 'pending' });
 
     if (!resolution) {
       return res.status(404).json({ error: 'Pending resolution not found' });
@@ -234,9 +257,9 @@ const getRecentlyViewed = async (req, res) => {
 const addRecentlyViewed = async (req, res) => {
   try {
     const { id, title, file_path, date_docketed, date_published } = req.body;
-    const resolutionId = getNumericId(id);
+    const resolutionId = normalizeResolutionKey(id);
 
-    if (resolutionId === null || !title) {
+    if (!resolutionId || !title) {
       return res.status(400).json({ error: 'Resolution id and title are required' });
     }
 
