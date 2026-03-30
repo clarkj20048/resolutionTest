@@ -75,7 +75,7 @@ const buildResolutionPayload = (body = {}, fallbackStatus) => {
 
 const getResolutions = async (req, res) => {
   try {
-    const resolutions = await Resolution.find({ status: { $ne: 'pending' } }).sort({ createdAt: -1 });
+    const resolutions = await Resolution.find({ status: { $ne: 'pending' } }).sort({ resolutionId: 1 });
     return res.json(resolutions);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch resolutions' });
@@ -171,7 +171,7 @@ const deleteResolution = async (req, res) => {
 
 const getPendingResolutions = async (req, res) => {
   try {
-    const resolutions = await Resolution.find({ status: 'pending' }).sort({ createdAt: -1 });
+    const resolutions = await Resolution.find({ status: 'pending' }).sort({ resolutionId: 1 });
     return res.json(resolutions);
   } catch (error) {
     return res.status(500).json({ error: 'Failed to fetch pending resolutions' });
